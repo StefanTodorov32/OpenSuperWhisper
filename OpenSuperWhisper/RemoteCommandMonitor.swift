@@ -1,4 +1,5 @@
 import AppKit
+import CoreAudio
 import Foundation
 import MediaPlayer
 
@@ -60,6 +61,21 @@ class RemoteCommandMonitor {
     private let pressCooldown: TimeInterval = 0.8
     private var lastAcceptedPress: CFAbsoluteTime = 0
 
+    /// How long after the audio route changes a transport command is disregarded.
+    ///
+    /// Moving AirPods between the Mac and an iPhone makes the system pause whatever
+    /// was playing, and that pause reaches the Now Playing app by the same path a
+    /// stem press does. Gesture identity is already absent from the signal, so the
+    /// command itself cannot say which it is; the one thing that separates them is
+    /// that a handover command arrives on the heels of the route change.
+    ///
+    /// Two seconds because a Bluetooth handover is not instantaneous — the route
+    /// settles first and the transport command follows. The cost is that a genuine
+    /// squeeze within two seconds of putting the AirPods in is ignored, which is the
+    /// same moment the user is unlikely to be dictating anyway.
+    private let routeChangeGrace: TimeInterval = 2.0
+    private var lastRouteChange: CFAbsoluteTime = 0
+
     /// `NX_KEYTYPE_PLAY`, `_NEXT`, `_PREVIOUS`.
     private let watchedMediaKeyCodes: Set<Int32> = [16, 17, 18]
 
@@ -68,6 +84,7 @@ class RemoteCommandMonitor {
     private var route: StemPressRoute = .nowPlaying
     private var commandTargets: [(command: MPRemoteCommand, target: Any)] = []
     private var claimedNowPlaying = false
+    private var defaultOutputListener: AudioObjectPropertyListenerBlock?
 
     private init() {}
 
@@ -76,6 +93,9 @@ class RemoteCommandMonitor {
 
         self.route = route
         lastAcceptedPress = 0
+        lastRouteChange = 0
+
+        startRouteChangeMonitoring()
 
         switch route {
         case .eventTap:
@@ -86,19 +106,29 @@ class RemoteCommandMonitor {
     }
 
     func stop() {
+        stopRouteChangeMonitoring()
         stopEventTap()
         stopNowPlaying()
     }
 
-    /// Debounces, then reports a press. See `pressCooldown`.
+    /// Debounces, then reports a press. See `pressCooldown` and `routeChangeGrace`.
     private func acceptPress(_ source: String) {
         let now = CFAbsoluteTimeGetCurrent()
         let sinceLast = now - lastAcceptedPress
+        let sinceRouteChange = now - lastRouteChange
 
         if lastAcceptedPress > 0 && sinceLast < pressCooldown {
             if isDiagnosticLoggingEnabled {
                 NSLog("RemoteCommandMonitor: ignored \(source) (\(String(format: "%.3f", sinceLast))s since last, cooldown \(pressCooldown)s)")
             }
+            return
+        }
+
+        if lastRouteChange > 0 && sinceRouteChange < routeChangeGrace {
+            // Logged unconditionally, not behind the diagnostic flag: this is the one
+            // rejection a user can provoke by accident, and without a line here a
+            // deliberately ignored squeeze looks like a dropped one.
+            NSLog("RemoteCommandMonitor: ignored \(source) (\(String(format: "%.3f", sinceRouteChange))s after an audio route change, grace \(routeChangeGrace)s)")
             return
         }
 
@@ -108,6 +138,63 @@ class RemoteCommandMonitor {
         DispatchQueue.main.async {
             self.onPress?()
         }
+    }
+
+    // MARK: - Audio route changes
+
+    /// Observes the default *output* device so a handover can be told from a squeeze.
+    ///
+    /// Output specifically, not the device list: starting a Dictation opens the
+    /// microphone, and on AirPods that alone churns the HAL — devices and aggregates
+    /// appear and disappear as the profile switches. Keying on those would make every
+    /// recording suppress the squeeze meant to stop it. Which device plays audio
+    /// changes when AirPods leave for the iPhone, or come back, and not merely
+    /// because this app opened a microphone.
+    private func startRouteChangeMonitoring() {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            guard let self = self else { return }
+            self.lastRouteChange = CFAbsoluteTimeGetCurrent()
+            if self.isDiagnosticLoggingEnabled {
+                NSLog("RemoteCommandMonitor: default output device changed; ignoring transport commands for \(self.routeChangeGrace)s")
+            }
+        }
+
+        let status = AudioObjectAddPropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            DispatchQueue.main,
+            listener
+        )
+
+        if status == noErr {
+            defaultOutputListener = listener
+        } else {
+            NSLog("RemoteCommandMonitor: failed to observe default output device (status \(status)); handovers may trigger a Dictation")
+        }
+    }
+
+    private func stopRouteChangeMonitoring() {
+        guard let listener = defaultOutputListener else { return }
+        defaultOutputListener = nil
+
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        AudioObjectRemovePropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            DispatchQueue.main,
+            listener
+        )
     }
 
     // MARK: - Route: Now Playing

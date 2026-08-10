@@ -13,8 +13,21 @@ does not start producing audio immediately. That behaviour was hard won, is easy
 and a rewrite would have to re-derive it while also being the change most likely to break every
 Dictation.
 
-Whether macOS permits two concurrent input clients here is verified by spike before anything is
-built on it. If it does not, unifying on one tap becomes the fallback rather than the opening move.
+**Verified 2026-08-10 on macOS 26.5.1.** Concurrent capture works. An `AVAudioEngine` tap pinned to
+the built-in microphone sustained 10 buffers/second for the full 31 seconds of a Dictation while
+`AVAudioRecorder` recorded from another device, and the Transcription came back correct. Unifying
+onto one tap is therefore not required.
+
+The same measurement produced a second, less obvious result: **each Dictation reconfigures the
+device twice**, and each reconfiguration stops the engine outright. `AudioRecorder` switches the
+system default input when recording starts and restores it when recording ends; both changes reach
+the built-in device the listener is bound to, producing `"Abandoning I/O cycle because reconfig
+pending"` within six milliseconds. Pinning the device does **not** prevent this.
+
+A listener must therefore observe `AVAudioEngineConfigurationChange`, re-pin its device and restart.
+Restarting costs about 50ms, so the listener is deaf for roughly that long at the start and end of
+every Dictation. That is harmless for a Stop Phrase, which arrives later, but it rules out
+expecting the listener to hear anything spoken in the instant a Dictation begins.
 
 ## Consequences
 

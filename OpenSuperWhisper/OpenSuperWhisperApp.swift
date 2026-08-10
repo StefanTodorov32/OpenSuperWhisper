@@ -56,6 +56,12 @@ struct OpenSuperWhisperApp: App {
         _ = ShortcutManager.shared
         _ = MicrophoneService.shared
         WhisperModelManager.shared.ensureDefaultModelPresent()
+
+        // AudioTapSpike is deliberately not started: its question is answered (see
+        // ADR-0006) and leaving it running would hold the microphone open for the whole
+        // session. The file is kept until WakePhraseMonitor absorbs its device pinning
+        // and restart-on-reconfiguration handling, which are the parts that took
+        // measuring to get right.
     }
 }
 
