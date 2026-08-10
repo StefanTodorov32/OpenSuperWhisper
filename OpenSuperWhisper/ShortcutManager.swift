@@ -146,13 +146,13 @@ class ShortcutManager {
     private func setupStemPressTrigger() {
         RemoteCommandMonitor.shared.stop()
 
-        let gesture = StemPressGesture(rawValue: AppPreferences.shared.stemPressGesture) ?? .none
-        guard gesture != .none else { return }
+        guard AppPreferences.shared.stemPressEnabled else { return }
 
-        let route = StemPressRoute(rawValue: AppPreferences.shared.stemPressRoute) ?? .eventTap
+        let route = StemPressRoute(rawValue: AppPreferences.shared.stemPressRoute) ?? .nowPlaying
 
-        // Whether a stem press is observable by a third-party app at all is an open
-        // question, so debug builds log every media key and transport command seen.
+        // Debug builds log every media key and transport command seen, accepted or
+        // ignored, so the behaviour of unfamiliar remotes can be established the same
+        // way the AirPods behaviour was.
         #if DEBUG
         RemoteCommandMonitor.shared.isDiagnosticLoggingEnabled = true
         #endif
@@ -161,8 +161,8 @@ class ShortcutManager {
             self?.handleDiscretePress()
         }
 
-        RemoteCommandMonitor.shared.start(gesture: gesture, route: route)
-        print("ShortcutManager: Using stem-press trigger: \(gesture.displayName) via \(route.displayName)")
+        RemoteCommandMonitor.shared.start(route: route)
+        NSLog("ShortcutManager: Using stem-press trigger via \(route.displayName)")
     }
     
     private func handleKeyDown() {

@@ -1,5 +1,11 @@
 # Spike: is an AirPods stem press observable?
 
+> **Resolved 2026-08-10, well inside the time-box. Yes — but only via Now Playing,
+> and without gesture identity.** Route A (media key tap) receives nothing from
+> AirPods; Route B receives every press as `play`. Full findings and consequences in
+> [ADR-0004](./adr/0004-stem-press-arrives-via-now-playing.md). The procedure below is
+> kept for re-testing on a new macOS release or with a different remote.
+
 Everything in the stem-press Trigger rests on one unverified assumption: that a
 double squeeze of the AirPods stem produces an event a third-party Mac app can see.
 It may not. A stem press is an AVRCP transport command, and macOS may deliver it

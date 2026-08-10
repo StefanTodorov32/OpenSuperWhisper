@@ -113,14 +113,14 @@ final class AppPreferences {
     @UserDefault(key: "mouseButtonHotkey", defaultValue: "none")
     var mouseButtonHotkey: String
 
-    /// AirPods stem gesture bound to recording. Defaults to none: the Trigger
-    /// hijacks a media control, so it must be opted into explicitly.
-    @UserDefault(key: "stemPressGesture", defaultValue: "none")
-    var stemPressGesture: String
+    /// Whether an AirPods stem squeeze toggles recording. Defaults off: the Trigger
+    /// takes over the stem's media controls, so it must be opted into explicitly.
+    @UserDefault(key: "stemPressEnabled", defaultValue: false)
+    var stemPressEnabled: Bool
 
-    /// How the stem press is intercepted. Defaults to the media key tap, which
-    /// is the only route that can leave unclaimed gestures working for media apps.
-    @UserDefault(key: "stemPressRoute", defaultValue: "eventTap")
+    /// How the stem press is intercepted. Defaults to Now Playing, the only route
+    /// verified to receive AirPods presses. See ADR-0004.
+    @UserDefault(key: "stemPressRoute", defaultValue: "nowPlaying")
     var stemPressRoute: String
 
 
