@@ -791,7 +791,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"OpenSuperWhisper/Preview Content\"";
-				DEVELOPMENT_TEAM = 8LLDD7HWZK;
+				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = 8LLDD7HWZK;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_MODULE_VERIFIER = YES;
@@ -828,7 +828,8 @@
 					"$(inherited)",
 					"-lomp",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = ru.starmel.OpenSuperWhisper;
+				INFOPLIST_KEY_CFBundleDisplayName = "OpenSuperWhisper (Dev)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.stefantodorov.OpenSuperWhisper.dev;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "";
@@ -855,7 +856,7 @@
 				STRIP_INSTALLED_PRODUCT = YES;
 				STRIP_STYLE = all;
 				DEVELOPMENT_ASSET_PATHS = "\"OpenSuperWhisper/Preview Content\"";
-				DEVELOPMENT_TEAM = 8LLDD7HWZK;
+				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = 8LLDD7HWZK;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_MODULE_VERIFIER = YES;
@@ -894,7 +895,8 @@
 					"$(inherited)",
 					"-lomp",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = ru.starmel.OpenSuperWhisper;
+				INFOPLIST_KEY_CFBundleDisplayName = "OpenSuperWhisper (Dev)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.stefantodorov.OpenSuperWhisper.dev;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "";
@@ -912,7 +914,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 13;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 8LLDD7HWZK;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
@@ -920,7 +922,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.1;
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ru.starmel.OpenSuperWhisperTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.stefantodorov.OpenSuperWhisperTests.dev;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/Bridge.h";
@@ -936,7 +938,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 13;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 8LLDD7HWZK;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
@@ -944,7 +946,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.1;
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ru.starmel.OpenSuperWhisperTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.stefantodorov.OpenSuperWhisperTests.dev;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/Bridge.h";
@@ -959,10 +961,10 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 13;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 8LLDD7HWZK;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ru.starmel.OpenSuperWhisperUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.stefantodorov.OpenSuperWhisperUITests.dev;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
@@ -976,10 +978,10 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 13;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 8LLDD7HWZK;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ru.starmel.OpenSuperWhisperUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.stefantodorov.OpenSuperWhisperUITests.dev;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
