@@ -9,6 +9,7 @@ enum RecordingState {
     case decoding
     case busy
     case noMicrophone
+    case copiedToClipboard
 }
 
 @MainActor
@@ -162,8 +163,13 @@ class IndicatorViewModel: ObservableObject {
         
         Task { [weak self] in
             guard let self = self else { return }
-            
+
             if let tempURL = await self.recorder.stopRecording() {
+                // Set when Insertion was skipped and an explanatory message is on
+                // screen. That message owns dismissal through its own timer, so the
+                // Indicator must not be torn down immediately below.
+                var messageOwnsDismissal = false
+
                 do {
                     print("start decoding...")
                     let duration = await AudioUtil.audioDuration(url: tempURL)
@@ -193,16 +199,18 @@ class IndicatorViewModel: ObservableObject {
                             self.recordingStore.addRecording(newRecording)
                         }
                         
-                        insertText(text)
+                        messageOwnsDismissal = insertText(text)
                         print("Transcription result: \(text)")
                     }
                 } catch {
                     print("Error transcribing audio: \(error)")
                     try? FileManager.default.removeItem(at: tempURL)
                 }
-                
-                await MainActor.run {
-                    self.delegate?.didFinishDecoding()
+
+                if !messageOwnsDismissal {
+                    await MainActor.run {
+                        self.delegate?.didFinishDecoding()
+                    }
                 }
             } else {
                 print("!!! Not found record url !!!")
@@ -214,10 +222,27 @@ class IndicatorViewModel: ObservableObject {
         }
     }
     
-    func insertText(_ text: String) {
-        guard !text.isEmpty else { return }
+    /// Returns `true` when Insertion was skipped and an explanatory message was put
+    /// on screen, in which case the caller must leave dismissal to that message.
+    @discardableResult
+    func insertText(_ text: String) -> Bool {
+        guard !text.isEmpty else { return false }
         let finalText = Self.applyPostProcessing(text)
         let prefs = AppPreferences.shared
+
+        defer { TargetAppGuard.shared.clear() }
+
+        // Focus has left the Target App, so a paste would land somewhere the user
+        // did not choose — and with a terminal focused, at a shell prompt. Leave the
+        // Transcription on the clipboard instead. A `nil` verdict means no Target App
+        // was ever captured (a dropped file), where the historical behaviour applies.
+        // See docs/adr/0003-insertion-targets-captured-app.md.
+        if prefs.autoPasteTranscription, TargetAppGuard.shared.isTargetStillFrontmost == false {
+            ClipboardUtil.copyToClipboard(finalText)
+            print("IndicatorViewModel: focus left \(TargetAppGuard.shared.localizedName ?? "the Target App"); copied to clipboard instead of pasting")
+            showAutoDismissingMessage(.copiedToClipboard)
+            return true
+        }
 
         if prefs.autoPasteTranscription {
             if prefs.autoCopyToClipboard {
@@ -233,6 +258,7 @@ class IndicatorViewModel: ObservableObject {
         }
         // If both are false, do nothing
 
+        return false
     }
     
     static func applyPostProcessing(_ text: String) -> String {
@@ -405,6 +431,18 @@ struct IndicatorWindow: View {
                         .frame(width: 24)
 
                     Text("No microphone")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.orange)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            case .copiedToClipboard:
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.on.clipboard")
+                        .foregroundColor(.orange)
+                        .frame(width: 24)
+
+                    Text("Focus moved — copied instead")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.orange)
                 }

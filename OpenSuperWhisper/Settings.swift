@@ -165,6 +165,20 @@ class SettingsViewModel: ObservableObject {
         }
     }
 
+    @Published var stemPressGesture: StemPressGesture {
+        didSet {
+            AppPreferences.shared.stemPressGesture = stemPressGesture.rawValue
+            NotificationCenter.default.post(name: .hotkeySettingsChanged, object: nil)
+        }
+    }
+
+    @Published var stemPressRoute: StemPressRoute {
+        didSet {
+            AppPreferences.shared.stemPressRoute = stemPressRoute.rawValue
+            NotificationCenter.default.post(name: .hotkeySettingsChanged, object: nil)
+        }
+    }
+
     @Published var doublePressToTrigger: Bool {
         didSet {
             AppPreferences.shared.doublePressToTrigger = doublePressToTrigger
@@ -220,6 +234,8 @@ class SettingsViewModel: ObservableObject {
         self.modifierOnlyHotkey = ModifierKey(rawValue: prefs.modifierOnlyHotkey) ?? .none
         self.mouseButtonHotkey = MouseButton(rawValue: prefs.mouseButtonHotkey) ?? .none
         self.holdToRecord = prefs.holdToRecord
+        self.stemPressGesture = StemPressGesture(rawValue: prefs.stemPressGesture) ?? .none
+        self.stemPressRoute = StemPressRoute(rawValue: prefs.stemPressRoute) ?? .eventTap
         self.doublePressToTrigger = prefs.doublePressToTrigger
         self.escCancelWithoutConfirmation = prefs.escCancelWithoutConfirmation
         self.startHiddenInMenuBar = prefs.startHiddenInMenuBar
@@ -944,6 +960,76 @@ struct SettingsView: View {
                             Toggle("", isOn: $viewModel.addSpaceAfterSentence)
                                 .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
                                 .labelsHidden()
+                        }
+                    }
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.controlBackgroundColor).opacity(0.3))
+                .cornerRadius(12)
+
+                // AirPods Stem
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("AirPods Stem")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Stem Gesture")
+                                    .font(.subheadline)
+                                Text("Squeeze the AirPods stem to start and stop recording. Works alongside your keyboard or mouse trigger.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Picker("", selection: $viewModel.stemPressGesture) {
+                                ForEach(StemPressGesture.allCases) { gesture in
+                                    Text(gesture.displayName).tag(gesture)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .frame(width: 160)
+                        }
+
+                        if viewModel.stemPressGesture != .none {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Interception")
+                                        .font(.subheadline)
+                                    Text(viewModel.stemPressRoute == .eventTap
+                                        ? "Watches media keys. Gestures you have not bound still control your music."
+                                        : "Becomes the Now Playing app. More reliable, but the stem stops controlling music entirely.")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Picker("", selection: $viewModel.stemPressRoute) {
+                                    ForEach(StemPressRoute.allCases) { route in
+                                        Text(route.displayName).tag(route)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .frame(width: 160)
+                            }
+
+                            if viewModel.stemPressGesture.stealsPlayPause {
+                                Text("⚠️ A single press is play/pause. Binding it means the stem no longer pauses your music — a double press leaves play/pause intact.")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            }
+
+                            Text("Press-and-hold is unavailable: AirPods use it for Noise Control or Siri and never send it to your Mac. Recording always toggles, and stops automatically after 60 seconds.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+
+                            permissionWarning(
+                                message: "⚠️ This trigger requires Input Monitoring permission so the stem press can be detected globally. Only media keys are inspected — no regular keystrokes are captured.",
+                                isGranted: permissionsManager.isInputMonitoringPermissionGranted
+                            ) {
+                                permissionsManager.requestInputMonitoringPermissionOrOpenSystemPreferences()
+                            }
                         }
                     }
                 }
