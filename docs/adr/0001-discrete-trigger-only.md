@@ -1,3 +1,7 @@
+---
+status: amended by ADR-0005
+---
+
 # Discrete Trigger only — no passive voice activation
 
 A Dictation is always started by a deliberate Trigger. We rejected passive voice activation
