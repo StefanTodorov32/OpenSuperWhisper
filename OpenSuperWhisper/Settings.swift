@@ -165,6 +165,40 @@ class SettingsViewModel: ObservableObject {
         }
     }
 
+    @Published var wakePhraseEnabled: Bool {
+        didSet {
+            AppPreferences.shared.wakePhraseEnabled = wakePhraseEnabled
+            NotificationCenter.default.post(name: .hotkeySettingsChanged, object: nil)
+        }
+    }
+
+    @Published var wakePhrase: String {
+        didSet {
+            AppPreferences.shared.wakePhrase = wakePhrase
+            NotificationCenter.default.post(name: .hotkeySettingsChanged, object: nil)
+        }
+    }
+
+    @Published var stopPhrase: String {
+        didSet {
+            AppPreferences.shared.stopPhrase = stopPhrase
+            NotificationCenter.default.post(name: .hotkeySettingsChanged, object: nil)
+        }
+    }
+
+    /// Allowed Apps as a newline-separated list of bundle identifiers. A text field
+    /// rather than an app picker: this is a developer tool, the identifiers are what the
+    /// gating actually matches on, and a picker would hide that.
+    @Published var listeningAllowedApps: String {
+        didSet {
+            AppPreferences.shared.listeningAllowedAppBundleIDs = listeningAllowedApps
+                .split(whereSeparator: \.isNewline)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            NotificationCenter.default.post(name: .hotkeySettingsChanged, object: nil)
+        }
+    }
+
     @Published var stemPressEnabled: Bool {
         didSet {
             AppPreferences.shared.stemPressEnabled = stemPressEnabled
@@ -234,6 +268,10 @@ class SettingsViewModel: ObservableObject {
         self.modifierOnlyHotkey = ModifierKey(rawValue: prefs.modifierOnlyHotkey) ?? .none
         self.mouseButtonHotkey = MouseButton(rawValue: prefs.mouseButtonHotkey) ?? .none
         self.holdToRecord = prefs.holdToRecord
+        self.wakePhraseEnabled = prefs.wakePhraseEnabled
+        self.wakePhrase = prefs.wakePhrase
+        self.stopPhrase = prefs.stopPhrase
+        self.listeningAllowedApps = prefs.listeningAllowedAppBundleIDs.joined(separator: "\n")
         self.stemPressEnabled = prefs.stemPressEnabled
         self.stemPressRoute = StemPressRoute(rawValue: prefs.stemPressRoute) ?? .nowPlaying
         self.doublePressToTrigger = prefs.doublePressToTrigger
@@ -1417,6 +1455,84 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(.controlBackgroundColor).opacity(0.3))
                 .cornerRadius(12)
+
+                // Spoken Trigger — macOS 26+ only, hidden rather than shown broken.
+                if #available(macOS 26.0, *) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Voice")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Start by Voice")
+                                        .font(.subheadline)
+                                    Text("Say a phrase to start recording, and another to stop. No key or squeeze needed.")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Toggle("", isOn: $viewModel.wakePhraseEnabled)
+                                    .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
+                                    .labelsHidden()
+                            }
+
+                            if viewModel.wakePhraseEnabled {
+                                HStack {
+                                    Text("Start Phrase")
+                                        .font(.subheadline)
+                                    Spacer()
+                                    TextField("start dictation", text: $viewModel.wakePhrase)
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(width: 200)
+                                }
+
+                                HStack {
+                                    Text("Stop Phrase")
+                                        .font(.subheadline)
+                                    Spacer()
+                                    TextField("stop dictation", text: $viewModel.stopPhrase)
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(width: 200)
+                                }
+
+                                Text("A phrase only fires when it is the whole sentence, so \"it should start dictation automatically\" is ignored. Pause briefly before and after saying it. The stop phrase is removed from the transcription.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Listen only in these apps")
+                                        .font(.subheadline)
+                                    Text("One bundle identifier per line, e.g. com.apple.Terminal. Listening happens only while one of these is in front — so the microphone is closed the rest of the time, and a misfire can only ever type where you were already working. Leave empty and nothing listens.")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    TextEditor(text: $viewModel.listeningAllowedApps)
+                                        .font(.system(size: 12, design: .monospaced))
+                                        .frame(height: 70)
+                                        .padding(4)
+                                        .background(Color(.textBackgroundColor).opacity(0.5))
+                                        .cornerRadius(6)
+                                }
+
+                                Text("⚠️ The microphone stays open while listening, so macOS shows the recording indicator. Listening always uses the built-in mic, never your AirPods, to avoid draining them.")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+
+                                permissionWarning(
+                                    message: "⚠️ This needs Speech Recognition permission. Recognition runs entirely on your Mac — nothing is sent anywhere, and nothing is recorded or transcribed until you say your start phrase.",
+                                    isGranted: permissionsManager.isMicrophonePermissionGranted
+                                ) {
+                                    permissionsManager.requestMicrophonePermissionOrOpenSystemPreferences()
+                                }
+                            }
+                        }
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.controlBackgroundColor).opacity(0.3))
+                    .cornerRadius(12)
+                }
 
                 // Recording Behavior
                 VStack(alignment: .leading, spacing: 16) {

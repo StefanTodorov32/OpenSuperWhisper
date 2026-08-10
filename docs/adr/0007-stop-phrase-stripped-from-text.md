@@ -13,6 +13,9 @@ as independent capture clients with independent clocks (ADR-0006), so the mappin
 through wall time and drifts. A drifting cut clips the user's last real word; a stray "stop
 dictation" at the end of a paste does not. The cheaper mechanism has the better failure mode.
 
-Matching is deliberately loose — case- and punctuation-insensitive, and only at the end of the text
-— because whisper may render the phrase as "Stop dictation." or "stop dictating". The cost is that
-genuinely ending a sentence with those words will eat them.
+Matching ignores case, punctuation and spacing, and is anchored to the end of the text, so
+`"Refactor it.  STOP   DICTATION!!"` reduces to `"Refactor it."`. It compares whole words, so it does
+**not** absorb morphological variants: if whisper renders the phrase as "stop dictating" the words
+survive into the Transcription. Widening it to stem-match would also start eating "Please don't stop
+dictating", which is worse. The residual cost is that deliberately ending a sentence with the exact
+Stop Phrase loses those words.

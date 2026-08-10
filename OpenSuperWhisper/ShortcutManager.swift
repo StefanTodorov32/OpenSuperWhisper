@@ -27,6 +27,11 @@ class ShortcutManager {
     /// Transcription into whatever holds focus.
     private var maxDurationWorkItem: DispatchWorkItem?
     private let maxRecordingDuration: TimeInterval = 60
+
+    /// Bound for a Dictation started by a Spoken Trigger. Longer than the Discrete
+    /// Trigger bound because ending one depends on a Stop Phrase being heard, and the
+    /// user has no key to fall back on.
+    static let spokenTriggerMaxDuration: TimeInterval = 120
     private var holdMode = false
     private var useModifierOnlyHotkey = false
     private var useMouseButtonHotkey = false
@@ -52,6 +57,20 @@ class ShortcutManager {
             name: .indicatorWindowDidHide,
             object: nil
         )
+
+        // Listening follows focus: an Allowed App coming forward starts it, anything
+        // else stops it. Observed on NSWorkspace rather than polled, so the microphone
+        // is closed the moment focus leaves.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(frontmostApplicationChanged),
+            name: NSWorkspace.didActivateApplicationNotification,
+            object: nil
+        )
+    }
+
+    @objc private func frontmostApplicationChanged() {
+        updateListeningForFrontmostApp()
     }
     
     @objc private func indicatorWindowDidHide() {
@@ -137,6 +156,85 @@ class ShortcutManager {
         }
 
         setupStemPressTrigger()
+        setupWakePhraseTrigger()
+    }
+
+    /// Also additive, for the same reason as the stem: a Spoken Trigger cannot collide
+    /// with a key or a button.
+    ///
+    /// Listening is not started here — it starts and stops as focus moves between
+    /// Allowed Apps, which `updateListeningForFrontmostApp` handles.
+    private func setupWakePhraseTrigger() {
+        guard #available(macOS 26.0, *) else { return }
+        configureWakePhraseMonitor()
+    }
+
+    @available(macOS 26.0, *)
+    private func configureWakePhraseMonitor() {
+        WakePhraseMonitor.shared.onWakePhrase = { [weak self] in
+            // Longer bound than a Discrete Trigger: there is no hand on a key to end
+            // this, and a Stop Phrase can be missed. The cap is the only backstop.
+            self?.handleDiscretePress(maxDuration: Self.spokenTriggerMaxDuration)
+        }
+
+        WakePhraseMonitor.shared.onStopPhrase = { [weak self] in
+            self?.handleStopPhrase()
+        }
+
+        #if DEBUG
+        WakePhraseMonitor.shared.isDiagnosticLoggingEnabled = true
+        #endif
+
+        updateListeningForFrontmostApp()
+    }
+
+    /// Starts or stops Listening according to whether the frontmost application is an
+    /// Allowed App. Per ADR-0005 this is what bounds the feature's cost and reach, so it
+    /// is enforced here rather than left to the monitor.
+    private func updateListeningForFrontmostApp() {
+        guard #available(macOS 26.0, *) else { return }
+        applyListeningPolicy()
+    }
+
+    @available(macOS 26.0, *)
+    private func applyListeningPolicy() {
+        let prefs = AppPreferences.shared
+        let monitor = WakePhraseMonitor.shared
+
+        guard prefs.wakePhraseEnabled else {
+            monitor.stopListening()
+            return
+        }
+
+        let allowed = prefs.listeningAllowedAppBundleIDs
+        let frontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+
+        // This app's own Settings window counts as an Allowed App while a Dictation is
+        // running, so that changing focus to check the Indicator does not deafen the
+        // Stop Phrase mid-Dictation.
+        let ownBundleID = Bundle.main.bundleIdentifier
+        let isSelf = frontmost != nil && frontmost == ownBundleID
+        let shouldListen = (frontmost.map { allowed.contains($0) } ?? false)
+            || (isSelf && activeVm != nil)
+            || (activeVm != nil && monitor.isListening)
+
+        if shouldListen {
+            monitor.startListening()
+        } else {
+            monitor.stopListening()
+        }
+    }
+
+    /// The Stop Phrase only ever ends a Dictation; it never starts one. Hearing "stop
+    /// dictation" while idle must do nothing.
+    private func handleStopPhrase() {
+        Task { @MainActor in
+            guard self.activeVm != nil else { return }
+            NSLog("ShortcutManager: Stop Phrase ending dictation")
+            self.cancelMaxDurationStop()
+            IndicatorWindowManager.shared.stopRecording()
+            self.activeVm = nil
+        }
     }
 
     /// Configured *in addition to* whichever Trigger above is active, not instead of
@@ -209,7 +307,7 @@ class ShortcutManager {
     /// `respectHoldMode` is false for Triggers that report a completed gesture rather
     /// than a key transition: no key-up is coming to end a hold, so such a press must
     /// always be allowed to stop recording.
-    private func toggleRecording(respectHoldMode: Bool) {
+    private func toggleRecording(respectHoldMode: Bool, maxDuration: TimeInterval? = nil) {
         Task { @MainActor in
             if self.activeVm == nil {
                 // Capture the Target App first, before any window is presented, so
@@ -230,7 +328,7 @@ class ShortcutManager {
                 let indicatorPoint = anchorPoint ?? cursorPosition
 
                 IndicatorWindowManager.shared.presentWindow(for: vm, nearPoint: indicatorPoint)
-                self.scheduleMaxDurationStop()
+                self.scheduleMaxDurationStop(after: maxDuration ?? self.maxRecordingDuration)
             } else if !respectHoldMode || !self.holdMode {
                 self.cancelMaxDurationStop()
                 IndicatorWindowManager.shared.stopRecording()
@@ -239,7 +337,7 @@ class ShortcutManager {
         }
     }
 
-    private func scheduleMaxDurationStop() {
+    private func scheduleMaxDurationStop(after duration: TimeInterval) {
         cancelMaxDurationStop()
 
         let workItem = DispatchWorkItem { [weak self] in
@@ -252,7 +350,7 @@ class ShortcutManager {
             }
         }
         maxDurationWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + maxRecordingDuration, execute: workItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: workItem)
     }
 
     private func cancelMaxDurationStop() {
@@ -295,11 +393,11 @@ class ShortcutManager {
     /// `doublePressToTrigger` is deliberately not consulted: the firmware already
     /// disambiguated a double press into its own transport command, so gating on
     /// interval as well would demand four squeezes to start recording.
-    private func handleDiscretePress() {
+    private func handleDiscretePress(maxDuration: TimeInterval? = nil) {
         holdWorkItem?.cancel()
         holdWorkItem = nil
         holdMode = false
-        toggleRecording(respectHoldMode: false)
+        toggleRecording(respectHoldMode: false, maxDuration: maxDuration)
     }
 
     /// Resolves the input anchor without letting a slow focused app delay the

@@ -21,6 +21,8 @@
 	<string>14.0</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>OpenSuperWhisper needs microphone access to record audio for transcription.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>OpenSuperWhisper listens for your spoken start and stop phrases so you can dictate without touching the keyboard. Recognition happens on your Mac, only while an app you chose is in front, and nothing is recorded until you say your start phrase.</string>
 	<key>NSAccessibilityUsageDescription</key>
 	<string>OpenSuperWhisper needs accessibility access to provide system-wide functionality.</string>
 	<key>NSAppleEventsUsageDescription</key>

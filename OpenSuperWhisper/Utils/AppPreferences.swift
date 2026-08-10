@@ -129,6 +129,26 @@ final class AppPreferences {
     @UserDefault(key: "stemPressRoute", defaultValue: "nowPlaying")
     var stemPressRoute: String
 
+    // MARK: - Spoken Triggers (macOS 26+, see ADR-0005)
+
+    /// Whether the app listens for a Wake Phrase. Off by default: this is the only
+    /// Trigger that holds the microphone open, so it must be opted into.
+    @UserDefault(key: "wakePhraseEnabled", defaultValue: false)
+    var wakePhraseEnabled: Bool
+
+    @UserDefault(key: "wakePhrase", defaultValue: "start dictation")
+    var wakePhrase: String
+
+    @UserDefault(key: "stopPhrase", defaultValue: "stop dictation")
+    var stopPhrase: String
+
+    /// Bundle identifiers of Allowed Apps. Listening happens only while one of these is
+    /// frontmost, which bounds both the battery cost and where a Wake Phrase can be
+    /// heard at all. Empty means Listening never starts — deliberately, so enabling the
+    /// feature without choosing where it applies does nothing rather than everything.
+    @UserDefault(key: "listeningAllowedAppBundleIDs", defaultValue: [String]())
+    var listeningAllowedAppBundleIDs: [String]
+
 
     @UserDefault(key: "holdToRecord", defaultValue: true)
     var holdToRecord: Bool

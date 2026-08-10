@@ -227,7 +227,7 @@ class IndicatorViewModel: ObservableObject {
     @discardableResult
     func insertText(_ text: String) -> Bool {
         guard !text.isEmpty else { return false }
-        let finalText = Self.applyPostProcessing(text)
+        let finalText = Self.applyPostProcessing(Self.removingTrailingStopPhrase(from: text))
         let prefs = AppPreferences.shared
 
         defer { TargetAppGuard.shared.clear() }
@@ -261,6 +261,57 @@ class IndicatorViewModel: ObservableObject {
         return false
     }
     
+    /// Removes the Stop Phrase from the end of a Transcription.
+    ///
+    /// A Spoken Trigger is spoken *into* the recording, so whisper transcribes it: the
+    /// user says "…and that's the plan. Stop dictation." and all of it comes back. This
+    /// removes it. See `docs/adr/0007-stop-phrase-stripped-from-text.md` — removing
+    /// words from a user's own transcription reads like a bug otherwise, and audio
+    /// trimming was rejected because the two capture clocks drift.
+    ///
+    /// Matching is loose (case, punctuation and spacing are ignored) because whisper may
+    /// render the phrase as "Stop dictation." or "stop dictating", and anchored to the
+    /// end so the phrase is only removed where a Stop Phrase would actually have been
+    /// spoken. Legitimately ending a sentence with those words will lose them.
+    static func removingTrailingStopPhrase(from text: String) -> String {
+        let phrase = AppPreferences.shared.stopPhrase
+        guard !phrase.isEmpty else { return text }
+
+        let phraseWords = phrase.lowercased().split { !$0.isLetter && !$0.isNumber }
+        guard !phraseWords.isEmpty else { return text }
+
+        // Walk back over trailing non-alphanumerics, then over exactly as many words as
+        // the phrase has, comparing them. Operating on the original string rather than a
+        // normalised copy keeps the untouched prefix byte-for-byte intact.
+        var index = text.endIndex
+        var matchedWords: [Substring] = []
+
+        while matchedWords.count < phraseWords.count {
+            while index > text.startIndex,
+                  !text[text.index(before: index)].isLetter,
+                  !text[text.index(before: index)].isNumber {
+                index = text.index(before: index)
+            }
+            guard index > text.startIndex else { return text }
+
+            var wordStart = index
+            while wordStart > text.startIndex {
+                let candidate = text.index(before: wordStart)
+                guard text[candidate].isLetter || text[candidate].isNumber else { break }
+                wordStart = candidate
+            }
+
+            matchedWords.insert(text[wordStart..<index], at: 0)
+            index = wordStart
+        }
+
+        let spoken = matchedWords.map { $0.lowercased() }
+        guard spoken == phraseWords.map(String.init) else { return text }
+
+        let trimmed = text[text.startIndex..<index]
+        return trimmed.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     static func applyPostProcessing(_ text: String) -> String {
         guard AppPreferences.shared.addSpaceAfterSentence,
               let lastChar = text.last,
