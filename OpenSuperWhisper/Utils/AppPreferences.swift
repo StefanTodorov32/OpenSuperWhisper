@@ -107,7 +107,13 @@ final class AppPreferences {
     
     /// Last non-none modifier key, used to restore the user's choice
     /// when switching back to Single Modifier Key mode.
-    @UserDefault(key: "lastModifierOnlyHotkey", defaultValue: "leftCommand")
+    ///
+    /// Defaults to a right-hand modifier rather than Left Command. This value is
+    /// bound as a Trigger when the user has not chosen one, and the monitor fires on
+    /// key-down without checking that the modifier was pressed alone — so binding a
+    /// modifier that appears in everyday chords means ⌘C or ⌘V starts a Dictation.
+    /// Right Option is the least-used modifier on a Mac keyboard.
+    @UserDefault(key: "lastModifierOnlyHotkey", defaultValue: "rightOption")
     var lastModifierOnlyHotkey: String
     
     @UserDefault(key: "mouseButtonHotkey", defaultValue: "none")

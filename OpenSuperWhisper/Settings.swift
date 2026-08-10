@@ -1297,7 +1297,7 @@ struct SettingsView: View {
                                 .cornerRadius(8)
 
                                 permissionWarning(
-                                    message: "⚠️ This mode requires Input Monitoring permission. macOS requires this to detect single modifier key presses globally. Only modifier key events (⌘, ⌥, ⇧, ⌃, Fn) are monitored — no regular keystrokes are captured.",
+                                    message: "⚠️ This mode requires Input Monitoring permission, which macOS requires to detect single modifier key presses globally. Key presses and clicks are also observed, but never inspected: the app records only that something was pressed, so it can tell a solitary ⌥ tap from a shortcut like ⌘C and ignore the latter. No keystroke is read, logged or stored, and nothing is intercepted.",
                                     isGranted: permissionsManager.isInputMonitoringPermissionGranted
                                 ) {
                                     permissionsManager.requestInputMonitoringPermissionOrOpenSystemPreferences()

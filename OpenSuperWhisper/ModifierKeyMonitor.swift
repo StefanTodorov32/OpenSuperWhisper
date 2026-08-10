@@ -101,8 +101,16 @@ class ModifierKeyMonitor {
     private var selectedModifierKey: ModifierKey = .none
     private var isModifierPressed = false
 
+    /// Set when other input arrived while the bound modifier was held, meaning the
+    /// press was part of a chord rather than a solitary tap.
+    private var comboDetected = false
+
     var onKeyDown: (() -> Void)?
     var onKeyUp: (() -> Void)?
+
+    /// The held modifier turned out to be part of a chord (⌘C, ⌘-click, ⌘⇧…), so
+    /// whatever `onKeyDown` started should be abandoned.
+    var onComboDetected: (() -> Void)?
 
     private init() {}
 
@@ -116,9 +124,23 @@ class ModifierKeyMonitor {
 
         selectedModifierKey = modifierKey
         isModifierPressed = false
-        
-        let eventMask = CGEventMask(1 << CGEventType.flagsChanged.rawValue)
-        
+        comboDetected = false
+
+        // Key and mouse events are observed alongside flagsChanged for one purpose:
+        // to tell a solitary modifier tap from a chord. Without this, binding a
+        // modifier that appears in everyday shortcuts means ⌘C starts a Dictation.
+        //
+        // These events are never inspected. The callback below reads nothing from
+        // them — no keycode, no character, no click location — it only records that
+        // input happened. The tap is listen-only, so nothing is intercepted either.
+        let eventMask = CGEventMask(
+            (1 << CGEventType.flagsChanged.rawValue) |
+            (1 << CGEventType.keyDown.rawValue) |
+            (1 << CGEventType.leftMouseDown.rawValue) |
+            (1 << CGEventType.rightMouseDown.rawValue) |
+            (1 << CGEventType.otherMouseDown.rawValue)
+        )
+
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
@@ -136,7 +158,13 @@ class ModifierKeyMonitor {
                     return Unmanaged.passUnretained(event)
                 }
                 
-                monitor.handleFlagsChanged(event: event)
+                if type == .flagsChanged {
+                    monitor.handleFlagsChanged(event: event)
+                } else {
+                    // Deliberately does not receive the event: only the fact that
+                    // some input occurred is of interest.
+                    monitor.handleUnrelatedInput()
+                }
                 return Unmanaged.passUnretained(event)
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
@@ -175,22 +203,48 @@ class ModifierKeyMonitor {
         }
     }
     
+    /// Records that input unrelated to the bound modifier arrived while it was held.
+    ///
+    /// Takes no event parameter by design: the only fact needed is *that* something
+    /// was pressed. Nothing about the input is read, logged or stored.
+    fileprivate func handleUnrelatedInput() {
+        guard isModifierPressed, !comboDetected else { return }
+
+        comboDetected = true
+        DispatchQueue.main.async {
+            self.onComboDetected?()
+        }
+    }
+
     private func handleFlagsChanged(event: CGEvent) {
         let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
         let flags = event.flags
-        
-        guard keyCode == selectedModifierKey.keyCode else { return }
-        
+
+        guard keyCode == selectedModifierKey.keyCode else {
+            // A different modifier changed state. If ours is held, this is a chord
+            // such as ⌘⇧ — caught here without needing to look at key events.
+            handleUnrelatedInput()
+            return
+        }
+
         let cgFlag = selectedModifierKey.cgEventFlag
         let isPressed = flags.contains(cgFlag)
-        
+
         if isPressed && !isModifierPressed {
             isModifierPressed = true
+            comboDetected = false
             DispatchQueue.main.async {
                 self.onKeyDown?()
             }
         } else if !isPressed && isModifierPressed {
             isModifierPressed = false
+
+            // A chord already abandoned the Dictation, so there is nothing for
+            // key-up to stop. Reporting it would stop the *next* one.
+            let wasCombo = comboDetected
+            comboDetected = false
+            guard !wasCombo else { return }
+
             DispatchQueue.main.async {
                 self.onKeyUp?()
             }

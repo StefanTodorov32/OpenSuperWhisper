@@ -121,6 +121,10 @@ class ShortcutManager {
                 self?.handleKeyUp()
             }
 
+            ModifierKeyMonitor.shared.onComboDetected = { [weak self] in
+                self?.abandonDictationStartedByChord()
+            }
+
             lastPressDownTime = 0
             pressConsumed = false
             ModifierKeyMonitor.shared.start(modifierKey: modifierKey)
@@ -254,6 +258,34 @@ class ShortcutManager {
     private func cancelMaxDurationStop() {
         maxDurationWorkItem?.cancel()
         maxDurationWorkItem = nil
+    }
+
+    /// Discards a Dictation that was started by a modifier press which turned out to
+    /// be part of a chord.
+    ///
+    /// The modifier monitor fires on key-down, so it cannot know yet whether the user
+    /// is starting a Dictation or typing ⌘C. Starting and then abandoning is the only
+    /// order available: delaying the start instead would cost the opening words of
+    /// every genuine Dictation, which the anchor-resolution timeout above exists to
+    /// protect.
+    ///
+    /// `requestCancel` discards the audio without transcribing. Its confirmation
+    /// prompt only applies to recordings past ten seconds, so a chord abort — which
+    /// happens within milliseconds — is always immediate.
+    private func abandonDictationStartedByChord() {
+        holdWorkItem?.cancel()
+        holdWorkItem = nil
+        holdMode = false
+        pressConsumed = false
+        cancelMaxDurationStop()
+
+        Task { @MainActor in
+            guard self.activeVm != nil else { return }
+            if IndicatorWindowManager.shared.requestCancel() {
+                self.activeVm = nil
+                NSLog("ShortcutManager: modifier was part of a chord, dictation discarded")
+            }
+        }
     }
 
     /// Entry point for a Trigger with no press-and-hold dimension — currently the
